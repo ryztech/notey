@@ -33,16 +33,24 @@ export function BarList({
     else rowElements.current.delete(id)
   }
 
+  // Index is computed relative to the list with the dragged bar removed —
+  // matching what reorder() expects (remove, then insert at this index) —
+  // rather than relative to the full array, which previously caused an
+  // off-by-one overshoot whenever dragging a bar downward.
   function getIndexForY(clientY: number, excludeId: string) {
-    for (let i = 0; i < bars.length; i++) {
-      if (bars[i].id === excludeId) continue
-      const el = rowElements.current.get(bars[i].id)
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      const mid = rect.top + rect.height / 2
-      if (clientY < mid) return i
+    let insertIndex = 0
+    let seen = 0
+    for (const bar of bars) {
+      if (bar.id === excludeId) continue
+      const el = rowElements.current.get(bar.id)
+      if (el) {
+        const rect = el.getBoundingClientRect()
+        const mid = rect.top + rect.height / 2
+        if (clientY > mid) insertIndex = seen + 1
+      }
+      seen++
     }
-    return bars.length - 1
+    return insertIndex
   }
 
   function handleDragStart(id: string) {

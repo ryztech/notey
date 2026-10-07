@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { useBarGesture } from '../gestures/useBarGesture'
 import type { Bar as BarType } from '../types'
 import styles from './Bar.module.css'
@@ -34,7 +39,9 @@ export function Bar({
 }: BarProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [text, setText] = useState(bar.text)
+  const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const dragPointerId = useRef<number | null>(null)
 
   useEffect(() => {
     setText(bar.text)
@@ -48,20 +55,50 @@ export function Bar({
     if (isEditing) inputRef.current?.focus()
   }, [isEditing])
 
-  const { handlers, swipeX, isDragging, snapBack } = useBarGesture({
+  const { handlers, swipeX, snapBack } = useBarGesture({
     disabled: isEditing,
-    onTap: () => setIsEditing(true),
+    onShortTap: () => {
+      if (bar.isTodo) onToggleDone(bar.id)
+    },
+    onLongPress: () => setIsEditing(true),
     onToggleTodo: () => onToggleTodo(bar.id),
     onDelete: () => onDelete(bar.id),
-    onDragStart: () => onDragStart(bar.id),
-    onDragMove,
-    onDragEnd,
   })
 
   function commitText() {
     setIsEditing(false)
     onUpdateText(bar.id, text)
     if (autoFocus) onFocusHandled()
+  }
+
+  // Drag handle: grabbing it starts reordering immediately (no long-press,
+  // no direction ambiguity) so it never fights the row's own tap/swipe
+  // gestures, page scroll, or the browser's pull-to-refresh.
+  function onHandlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    e.stopPropagation()
+    dragPointerId.current = e.pointerId
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    setIsDragging(true)
+    onDragStart(bar.id)
+  }
+
+  function onHandlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    e.stopPropagation()
+    if (dragPointerId.current !== e.pointerId) return
+    onDragMove(e.clientY)
+  }
+
+  function endHandleDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    e.stopPropagation()
+    if (dragPointerId.current !== e.pointerId) return
+    dragPointerId.current = null
+    setIsDragging(false)
+    onDragEnd()
   }
 
   return (
@@ -81,16 +118,9 @@ export function Bar({
       {...handlers}
     >
       {bar.isTodo && (
-        <button
-          type="button"
-          className={styles.checkbox}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onToggleDone(bar.id)}
-          aria-pressed={bar.done}
-          aria-label={bar.done ? 'mark not done' : 'mark done'}
-        >
+        <span className={styles.checkbox} aria-hidden="true">
           {bar.done ? '[x]' : '[ ]'}
-        </button>
+        </span>
       )}
       <input
         ref={inputRef}
@@ -110,6 +140,16 @@ export function Bar({
           if (isEditing) e.stopPropagation()
         }}
       />
+      <div
+        className={styles.handle}
+        aria-label="drag to reorder"
+        onPointerDown={onHandlePointerDown}
+        onPointerMove={onHandlePointerMove}
+        onPointerUp={endHandleDrag}
+        onPointerCancel={endHandleDrag}
+      >
+        [::]
+      </div>
     </div>
   )
 }

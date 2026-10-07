@@ -24,14 +24,18 @@
 
 .checkbox {
   flex: none;
-  font-family: inherit;
   font-size: 1rem;
-  background: none;
-  border: none;
   color: var(--fg);
-  padding: 0;
-  cursor: pointer;
-  touch-action: manipulation;
+}
+
+.handle {
+  flex: none;
+  font-size: 1rem;
+  color: var(--done-dim);
+  padding: 0 0.25rem;
+  cursor: grab;
+  touch-action: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
 
