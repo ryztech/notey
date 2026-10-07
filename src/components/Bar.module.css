@@ -13,6 +13,8 @@
 }
 
 .row.dragging {
+  position: relative;
+  z-index: 2;
   background: var(--bg-elevated);
   opacity: 0.85;
 }
@@ -31,8 +33,10 @@
 .handle {
   flex: none;
   font-size: 1rem;
+  line-height: 1;
   color: var(--done-dim);
-  padding: 0 0.25rem;
+  padding: 0.5rem 0.6rem;
+  margin: -0.5rem -0.6rem -0.5rem 0;
   cursor: grab;
   touch-action: none;
   -webkit-touch-callout: none;

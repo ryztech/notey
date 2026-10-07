@@ -6,7 +6,7 @@ const DELETE_SWIPE_THRESHOLD_PX = 96
 const SWIPE_MAX_PX = 140
 const LONG_PRESS_MS = 400
 
-type Status = 'pending' | 'swipe-right' | 'swipe-left' | 'scrolling' | 'done'
+type Status = 'pending' | 'swipe-right' | 'swipe-left' | 'scrolling'
 
 interface GestureState {
   pointerId: number
@@ -53,7 +53,11 @@ export function useBarGesture(options: UseBarGestureOptions) {
       startX: e.clientX,
       startY: e.clientY,
       lastY: e.clientY,
-      startTime: Date.now(),
+      // The event's own timestamp reflects when the hardware/OS event
+      // actually happened, unlike Date.now() which reflects whenever this
+      // handler happens to run — keeping short-vs-long classification
+      // accurate even if React is busy for a moment.
+      startTime: e.timeStamp,
       status: 'pending',
     }
 
@@ -67,7 +71,7 @@ export function useBarGesture(options: UseBarGestureOptions) {
 
   function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     const s = stateRef.current
-    if (!s || s.pointerId !== e.pointerId || s.status === 'done') return
+    if (!s || s.pointerId !== e.pointerId) return
 
     const deltaX = e.clientX - s.startX
     const deltaY = e.clientY - s.startY
@@ -100,12 +104,7 @@ export function useBarGesture(options: UseBarGestureOptions) {
     }
 
     if (s.status === 'swipe-left') {
-      const clamped = Math.min(0, Math.max(deltaX, -SWIPE_MAX_PX))
-      setSwipeX(clamped)
-      if (clamped <= -DELETE_SWIPE_THRESHOLD_PX) {
-        s.status = 'done'
-        onDelete()
-      }
+      setSwipeX(Math.min(0, Math.max(deltaX, -SWIPE_MAX_PX)))
     }
   }
 
@@ -113,20 +112,21 @@ export function useBarGesture(options: UseBarGestureOptions) {
     const s = stateRef.current
     if (!s || s.pointerId !== e.pointerId) return
 
-    if (s.status === 'done') {
-      stateRef.current = null
-      return
-    }
-
     if (s.status === 'swipe-right') {
       if (e.clientX - s.startX > TOGGLE_SWIPE_THRESHOLD_PX) onToggleTodo()
       setSnapBack(true)
       setSwipeX(0)
     } else if (s.status === 'swipe-left') {
-      setSnapBack(true)
-      setSwipeX(0)
+      // Delete only commits on release, past the threshold — never mid-drag —
+      // so the gesture can still be aborted by pulling back before letting go.
+      if (e.clientX - s.startX < -DELETE_SWIPE_THRESHOLD_PX) {
+        onDelete()
+      } else {
+        setSnapBack(true)
+        setSwipeX(0)
+      }
     } else if (s.status === 'pending') {
-      if (Date.now() - s.startTime >= LONG_PRESS_MS) onLongPress()
+      if (e.timeStamp - s.startTime >= LONG_PRESS_MS) onLongPress()
       else onShortTap()
     }
     // 'scrolling' status needs no action on release

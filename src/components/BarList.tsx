@@ -25,7 +25,6 @@ export function BarList({
   reorder,
 }: BarListProps) {
   const [focusId, setFocusId] = useState<string | null>(null)
-  const draggingIdRef = useRef<string | null>(null)
   const rowElements = useRef<Map<string, HTMLDivElement>>(new Map())
 
   function registerRef(id: string, el: HTMLDivElement | null) {
@@ -53,23 +52,17 @@ export function BarList({
     return insertIndex
   }
 
-  function handleDragStart(id: string) {
-    draggingIdRef.current = id
-  }
-
-  function handleDragMove(clientY: number) {
-    const draggingId = draggingIdRef.current
-    if (!draggingId) return
-    const fromIndex = bars.findIndex((b) => b.id === draggingId)
+  // The dragged bar never moves in the real list while the gesture is in
+  // progress (it only floats visually via a transform — see Bar.tsx), so
+  // sibling rects stay stable for the whole drag and the final position is
+  // computed fresh from wherever the pointer ends up, however far that is.
+  function handleDragEnd(id: string, clientY: number) {
+    const fromIndex = bars.findIndex((b) => b.id === id)
     if (fromIndex === -1) return
-    const toIndex = getIndexForY(clientY, draggingId)
+    const toIndex = getIndexForY(clientY, id)
     if (toIndex !== fromIndex) {
       reorder(fromIndex, toIndex)
     }
-  }
-
-  function handleDragEnd() {
-    draggingIdRef.current = null
   }
 
   function handleAdd() {
@@ -94,8 +87,6 @@ export function BarList({
           onToggleTodo={toggleTodo}
           onToggleDone={toggleDone}
           onDelete={deleteBar}
-          onDragStart={handleDragStart}
-          onDragMove={handleDragMove}
           onDragEnd={handleDragEnd}
           onFocusHandled={() => setFocusId(null)}
           onEnterNewRow={handleEnterNewRow}

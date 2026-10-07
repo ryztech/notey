@@ -16,9 +16,7 @@ interface BarProps {
   onToggleTodo: (id: string) => void
   onToggleDone: (id: string) => void
   onDelete: (id: string) => void
-  onDragStart: (id: string) => void
-  onDragMove: (clientY: number) => void
-  onDragEnd: () => void
+  onDragEnd: (id: string, clientY: number) => void
   onFocusHandled: () => void
   onEnterNewRow: (afterId: string) => void
 }
@@ -31,8 +29,6 @@ export function Bar({
   onToggleTodo,
   onToggleDone,
   onDelete,
-  onDragStart,
-  onDragMove,
   onDragEnd,
   onFocusHandled,
   onEnterNewRow,
@@ -40,8 +36,11 @@ export function Bar({
   const [isEditing, setIsEditing] = useState(false)
   const [text, setText] = useState(bar.text)
   const [isDragging, setIsDragging] = useState(false)
+  const [dragOffsetY, setDragOffsetY] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragPointerId = useRef<number | null>(null)
+  const dragStartY = useRef(0)
+  const lastClientY = useRef(0)
 
   useEffect(() => {
     setText(bar.text)
@@ -73,24 +72,30 @@ export function Bar({
 
   // Drag handle: grabbing it starts reordering immediately (no long-press,
   // no direction ambiguity) so it never fights the row's own tap/swipe
-  // gestures, page scroll, or the browser's pull-to-refresh.
+  // gestures, page scroll, or the browser's pull-to-refresh. The row only
+  // floats visually (translateY) while dragging — the real list order is
+  // committed once, on release — so the bar's own DOM position never
+  // changes mid-gesture and can't drop the active pointer capture, which is
+  // what let drags only travel a short, inconsistent range before.
   function onHandlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     e.stopPropagation()
     dragPointerId.current = e.pointerId
+    dragStartY.current = e.clientY
+    lastClientY.current = e.clientY
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
       // ignore
     }
     setIsDragging(true)
-    onDragStart(bar.id)
   }
 
   function onHandlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     e.stopPropagation()
     if (dragPointerId.current !== e.pointerId) return
-    onDragMove(e.clientY)
+    lastClientY.current = e.clientY
+    setDragOffsetY(e.clientY - dragStartY.current)
   }
 
   function endHandleDrag(e: ReactPointerEvent<HTMLDivElement>) {
@@ -98,8 +103,13 @@ export function Bar({
     if (dragPointerId.current !== e.pointerId) return
     dragPointerId.current = null
     setIsDragging(false)
-    onDragEnd()
+    setDragOffsetY(0)
+    onDragEnd(bar.id, lastClientY.current)
   }
+
+  const transforms: string[] = []
+  if (swipeX) transforms.push(`translateX(${swipeX}px)`)
+  if (dragOffsetY) transforms.push(`translateY(${dragOffsetY}px)`)
 
   return (
     <div
@@ -112,7 +122,7 @@ export function Bar({
         .filter(Boolean)
         .join(' ')}
       style={{
-        transform: swipeX ? `translateX(${swipeX}px)` : undefined,
+        transform: transforms.length ? transforms.join(' ') : undefined,
         transition: snapBack ? 'transform 150ms ease-out' : undefined,
       }}
       {...handlers}
@@ -148,7 +158,7 @@ export function Bar({
         onPointerUp={endHandleDrag}
         onPointerCancel={endHandleDrag}
       >
-        [::]
+        =
       </div>
     </div>
   )
