@@ -1,0 +1,47 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.row.dragging {
+  background: var(--bg-elevated);
+  opacity: 0.85;
+}
+
+.row.done .text {
+  color: var(--done-dim);
+  text-decoration: line-through;
+}
+
+.checkbox {
+  flex: none;
+  font-family: inherit;
+  font-size: 1rem;
+  background: none;
+  border: none;
+  color: var(--fg);
+  padding: 0;
+  cursor: pointer;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 1rem;
+  caret-color: var(--fg);
+}
+
+.text:read-only {
+  cursor: default;
+}

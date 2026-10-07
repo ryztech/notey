@@ -1,0 +1,20 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.addRow {
+  font-family: inherit;
+  font-size: 1rem;
+  background: none;
+  border: none;
+  color: var(--done-dim);
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+}
+
+.addRow:hover {
+  color: var(--fg);
+}
