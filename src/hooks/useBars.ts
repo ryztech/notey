@@ -19,6 +19,27 @@ export function useBars() {
     return bar.id
   }, [setBars])
 
+  const addBarAfter = useCallback(
+    (afterId: string) => {
+      const bar: Bar = {
+        id: crypto.randomUUID(),
+        text: '',
+        isTodo: false,
+        done: false,
+        createdAt: Date.now(),
+      }
+      setBars((prev) => {
+        const index = prev.findIndex((b) => b.id === afterId)
+        if (index === -1) return [...prev, bar]
+        const next = prev.slice()
+        next.splice(index + 1, 0, bar)
+        return next
+      })
+      return bar.id
+    },
+    [setBars],
+  )
+
   const updateText = useCallback(
     (id: string, text: string) => {
       setBars((prev) => prev.map((b) => (b.id === id ? { ...b, text } : b)))
@@ -76,5 +97,14 @@ export function useBars() {
     [setBars],
   )
 
-  return { bars, addBar, updateText, toggleTodo, toggleDone, deleteBar, reorder }
+  return {
+    bars,
+    addBar,
+    addBarAfter,
+    updateText,
+    toggleTodo,
+    toggleDone,
+    deleteBar,
+    reorder,
+  }
 }

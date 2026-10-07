@@ -13,6 +13,8 @@
   text-align: left;
   padding: 0.6rem 0.75rem;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .addRow:hover {

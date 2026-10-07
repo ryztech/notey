@@ -15,6 +15,7 @@ interface BarProps {
   onDragMove: (clientY: number) => void
   onDragEnd: () => void
   onFocusHandled: () => void
+  onEnterNewRow: (afterId: string) => void
 }
 
 export function Bar({
@@ -29,6 +30,7 @@ export function Bar({
   onDragMove,
   onDragEnd,
   onFocusHandled,
+  onEnterNewRow,
 }: BarProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [text, setText] = useState(bar.text)
@@ -75,7 +77,6 @@ export function Bar({
       style={{
         transform: swipeX ? `translateX(${swipeX}px)` : undefined,
         transition: snapBack ? 'transform 150ms ease-out' : undefined,
-        touchAction: isDragging ? 'none' : 'pan-y',
       }}
       {...handlers}
     >
@@ -99,7 +100,11 @@ export function Bar({
         onChange={(e) => setText(e.target.value)}
         onBlur={commitText}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            e.currentTarget.blur()
+            onEnterNewRow(bar.id)
+          }
         }}
         onPointerDown={(e) => {
           if (isEditing) e.stopPropagation()

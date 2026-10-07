@@ -6,6 +6,7 @@ import styles from './BarList.module.css'
 interface BarListProps {
   bars: BarType[]
   addBar: () => string
+  addBarAfter: (afterId: string) => string
   updateText: (id: string, text: string) => void
   toggleTodo: (id: string) => void
   toggleDone: (id: string) => void
@@ -16,6 +17,7 @@ interface BarListProps {
 export function BarList({
   bars,
   addBar,
+  addBarAfter,
   updateText,
   toggleTodo,
   toggleDone,
@@ -67,6 +69,11 @@ export function BarList({
     setFocusId(id)
   }
 
+  function handleEnterNewRow(afterId: string) {
+    const id = addBarAfter(afterId)
+    setFocusId(id)
+  }
+
   return (
     <div className={styles.list}>
       {bars.map((bar) => (
@@ -83,6 +90,7 @@ export function BarList({
           onDragMove={handleDragMove}
           onDragEnd={handleDragEnd}
           onFocusHandled={() => setFocusId(null)}
+          onEnterNewRow={handleEnterNewRow}
         />
       ))}
       <button type="button" className={styles.addRow} onClick={handleAdd}>

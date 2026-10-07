@@ -1,22 +1,27 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-const EDGE_ZONE_PX = 28
+const MOVE_THRESHOLD_PX = 10
 const TOGGLE_SWIPE_THRESHOLD_PX = 72
 const DELETE_SWIPE_THRESHOLD_PX = 96
+const SWIPE_MAX_PX = 140
 const LONG_PRESS_MS = 400
-const TAP_MOVE_THRESHOLD_PX = 8
 
-type Zone = 'left' | 'right' | 'middle'
+type Status =
+  | 'pending'
+  | 'swipe-right'
+  | 'swipe-left'
+  | 'scrolling'
+  | 'dragging'
+  | 'done'
 
 interface GestureState {
-  zone: Zone
   pointerId: number
   startX: number
   startY: number
+  lastY: number
   startTime: number
+  status: Status
   longPressTimer: ReturnType<typeof setTimeout> | null
-  dragging: boolean
-  deleted: boolean
 }
 
 interface UseBarGestureOptions {
@@ -29,6 +34,15 @@ interface UseBarGestureOptions {
   onDragEnd: () => void
 }
 
+/**
+ * Gesture direction (not start position) decides the action, so every
+ * gesture works no matter where on the bar it begins. touch-action is
+ * fully "none" on the row (see Bar.module.css) because mobile browsers
+ * lock in the effective touch-action at the start of a touch sequence —
+ * flipping it to 'none' only once a long-press fires is too late to stop
+ * native scroll from hijacking the gesture. Vertical scrolling is instead
+ * reproduced manually (status "scrolling") so it still works everywhere.
+ */
 export function useBarGesture(options: UseBarGestureOptions) {
   const {
     disabled,
@@ -58,24 +72,14 @@ export function useBarGesture(options: UseBarGestureOptions) {
     if (disabled) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
 
-    const rect = e.currentTarget.getBoundingClientRect()
-    const localX = e.clientX - rect.left
-    const zone: Zone =
-      localX <= EDGE_ZONE_PX
-        ? 'left'
-        : localX >= rect.width - EDGE_ZONE_PX
-          ? 'right'
-          : 'middle'
-
     const state: GestureState = {
-      zone,
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
+      lastY: e.clientY,
       startTime: Date.now(),
+      status: 'pending',
       longPressTimer: null,
-      dragging: false,
-      deleted: false,
     }
     stateRef.current = state
 
@@ -86,48 +90,62 @@ export function useBarGesture(options: UseBarGestureOptions) {
     }
     setSnapBack(false)
 
-    if (zone === 'middle') {
-      state.longPressTimer = setTimeout(() => {
-        state.dragging = true
+    state.longPressTimer = setTimeout(() => {
+      if (state.status === 'pending') {
+        state.status = 'dragging'
         setIsDragging(true)
         onDragStart()
-      }, LONG_PRESS_MS)
-    }
+      }
+    }, LONG_PRESS_MS)
   }
 
   function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     const s = stateRef.current
-    if (!s || s.pointerId !== e.pointerId || s.deleted) return
+    if (!s || s.pointerId !== e.pointerId || s.status === 'done') return
 
     const deltaX = e.clientX - s.startX
     const deltaY = e.clientY - s.startY
 
-    if (s.zone === 'middle') {
-      if (s.dragging) {
-        onDragMove(e.clientY)
+    if (s.status === 'pending') {
+      if (
+        Math.abs(deltaX) < MOVE_THRESHOLD_PX &&
+        Math.abs(deltaY) < MOVE_THRESHOLD_PX
+      ) {
         return
       }
-      if (
-        Math.abs(deltaX) > TAP_MOVE_THRESHOLD_PX ||
-        Math.abs(deltaY) > TAP_MOVE_THRESHOLD_PX
-      ) {
-        clearLongPress()
+      clearLongPress()
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        s.status = deltaX > 0 ? 'swipe-right' : 'swipe-left'
+      } else {
+        s.status = 'scrolling'
+        s.lastY = e.clientY
+        return
       }
+    }
+
+    if (s.status === 'dragging') {
+      onDragMove(e.clientY)
       return
     }
 
-    if (s.zone === 'left') {
-      const clamped = Math.max(0, Math.min(deltaX, EDGE_ZONE_PX * 4))
+    if (s.status === 'scrolling') {
+      window.scrollBy(0, s.lastY - e.clientY)
+      s.lastY = e.clientY
+      return
+    }
+
+    if (s.status === 'swipe-right') {
+      setSwipeX(Math.max(0, Math.min(deltaX, SWIPE_MAX_PX)))
+      return
+    }
+
+    if (s.status === 'swipe-left') {
+      const clamped = Math.min(0, Math.max(deltaX, -SWIPE_MAX_PX))
       setSwipeX(clamped)
-      return
-    }
-
-    // right zone
-    const clamped = Math.min(0, Math.max(deltaX, -EDGE_ZONE_PX * 4))
-    setSwipeX(clamped)
-    if (clamped <= -DELETE_SWIPE_THRESHOLD_PX) {
-      s.deleted = true
-      onDelete()
+      if (clamped <= -DELETE_SWIPE_THRESHOLD_PX) {
+        s.status = 'done'
+        onDelete()
+      }
     }
   }
 
@@ -137,38 +155,25 @@ export function useBarGesture(options: UseBarGestureOptions) {
 
     clearLongPress()
 
-    if (s.deleted) {
+    if (s.status === 'done') {
       stateRef.current = null
       return
     }
 
-    if (s.zone === 'middle') {
-      if (s.dragging) {
-        onDragEnd()
-        setIsDragging(false)
-      } else {
-        const elapsed = Date.now() - s.startTime
-        const deltaX = Math.abs(e.clientX - s.startX)
-        const deltaY = Math.abs(e.clientY - s.startY)
-        if (
-          elapsed < LONG_PRESS_MS &&
-          deltaX < TAP_MOVE_THRESHOLD_PX &&
-          deltaY < TAP_MOVE_THRESHOLD_PX
-        ) {
-          onTap()
-        }
-      }
-    } else {
-      // left or right edge release without crossing a destructive threshold
-      if (s.zone === 'left') {
-        const deltaX = e.clientX - s.startX
-        if (deltaX > TOGGLE_SWIPE_THRESHOLD_PX) {
-          onToggleTodo()
-        }
-      }
+    if (s.status === 'dragging') {
+      onDragEnd()
+      setIsDragging(false)
+    } else if (s.status === 'swipe-right') {
+      if (e.clientX - s.startX > TOGGLE_SWIPE_THRESHOLD_PX) onToggleTodo()
       setSnapBack(true)
       setSwipeX(0)
+    } else if (s.status === 'swipe-left') {
+      setSnapBack(true)
+      setSwipeX(0)
+    } else if (s.status === 'pending') {
+      if (Date.now() - s.startTime < LONG_PRESS_MS) onTap()
     }
+    // 'scrolling' status needs no action on release
 
     stateRef.current = null
   }
@@ -177,7 +182,7 @@ export function useBarGesture(options: UseBarGestureOptions) {
     const s = stateRef.current
     if (!s || s.pointerId !== e.pointerId) return
     clearLongPress()
-    if (s.dragging) {
+    if (s.status === 'dragging') {
       onDragEnd()
       setIsDragging(false)
     }
