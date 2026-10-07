@@ -147,7 +147,15 @@ export function Bar({
           }
         }}
         onPointerDown={(e) => {
-          if (isEditing) e.stopPropagation()
+          if (isEditing) {
+            e.stopPropagation()
+          } else {
+            // A readOnly input is still natively focusable, so a plain
+            // click would otherwise place a caret in it (with no keyboard,
+            // since it's readOnly) even though nothing should happen here.
+            // Edit mode is only ever entered programmatically, on long-press.
+            e.preventDefault()
+          }
         }}
       />
       <div
